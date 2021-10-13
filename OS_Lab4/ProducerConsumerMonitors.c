@@ -49,6 +49,7 @@ int remove_item(){
 
     pthread_cond_signal(&monitor.empty);
     /*----------------------------------------------------------------------------------------*/
+
     sleep(1);  /* Sleep helps program run more smoothly */
     return item;
 }
