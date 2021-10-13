@@ -26,32 +26,29 @@ pthread_t tid;
 
 /* Insert an item into the buffer, while protecting shared memory. */
 void insert(int item){
-     pthread_cond_wait(&monitor.empty, &monitor.mutex);  /* Can't insert into a full buffer. Wait for the buffer to have available spaces */
+    /* ---- Ensure critical section is safe using a mutex lock and conditional variable ---- */
+    pthread_cond_wait(&monitor.empty, &monitor.mutex);  /* Can't insert into a full buffer. Wait for the buffer to have available spaces */
 
-    /* ---- Ensure critical section is safe using a mutex lock ---- */
-    //pthread_mutex_lock(&mutex);
     monitor.buffer[monitor.producer_pointer] = item;
     monitor.producer_pointer = (monitor.producer_pointer + 1) % BUFFER_SIZE;
-    //pthread_mutex_unlock(&mutex);
-    /*-------------------------------------------------------------*/
 
     pthread_cond_signal(&monitor.full);
+    /*--------------------------------------------------------------------------------------*/
+
     sleep(1);  /* Sleep helps program run more smoothly */
 }
 
 /* Remove an item from the buffer, while protecting shared memory. */
 int remove_item(){
+    /* ---- Ensure critical section is safe using a mutex lock and conditional variable ---- */
     pthread_cond_wait(&monitor.full, &monitor.mutex); /* Can't remove from empty buffer. Wait for elements to be inserted. */
 
-    /* ---- Ensure critical section is safe using a mutex lock ---- */
-    //pthread_mutex_lock(&mutex);
     int item;
     item = monitor.buffer[monitor.consumer_pointer];
     monitor.consumer_pointer = (monitor.consumer_pointer + 1) % BUFFER_SIZE;
-    //pthread_mutex_unlock(&mutex);
-    /*-------------------------------------------------------------*/
 
     pthread_cond_signal(&monitor.empty);
+    /*----------------------------------------------------------------------------------------*/
     sleep(1);  /* Sleep helps program run more smoothly */
     return item;
 }
@@ -73,6 +70,7 @@ void * consumer(void * param){
     }
 }
 
+/* Initialize all monitor variables */
 void init_monitor(struct monitor monitor) {
     monitor.producer_pointer = 0;
     monitor.consumer_pointer = 0;
