@@ -45,7 +45,7 @@ void debug(Disk *disk) {
             int indirectBlock = inode.Indirect;
             if(indirectBlock){
                 printf("    indirect block: %d\n", indirectBlock);
-                disk->readDisk(disk, indirectBlock, block.Pointers);
+                disk->readDisk(disk, indirectBlock, block.Data);
                 printf("    indirect data blocks:");
                 for(unsigned int indirectDataBlock=0; indirectDataBlock<POINTERS_PER_BLOCK; indirectDataBlock++){
                     if(block.Pointers[indirectDataBlock]){
