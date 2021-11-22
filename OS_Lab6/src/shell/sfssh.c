@@ -195,7 +195,7 @@ void do_create(Disk *disk, FileSystem *fs, int args, char *arg1, char *arg2) {
 
     size_t inumber = fs->create();
     if (inumber >= 0) {
-    	printf("created inode %d.\n", inumber);
+    	printf("created inode %ld.\n", inumber);
     } else {
     	printf("create failed!\n");
     }
@@ -209,7 +209,7 @@ void do_remove(Disk *disk, FileSystem *fs, int args, char *arg1, char *arg2) {
 
     size_t inumber = atoi(arg1);
     if (fs->removeInode(inumber)) {
-    	printf("removed inode %d.\n", inumber);
+    	printf("removed inode %ld.\n", inumber);
     } else {
     	printf("remove failed!\n");
     }
@@ -224,7 +224,7 @@ void do_stat(Disk *disk, FileSystem *fs, int args, char *arg1, char *arg2) {
     size_t inumber = atoi(arg1);
     size_t bytes   = fs->stat(inumber);
     if ((int)bytes >= 0) {
-    	printf("inode %d has size %zd bytes.\n", inumber, bytes);
+    	printf("inode %ld has size %zd bytes.\n", inumber, bytes);
    } else {
     	printf("stat failed!\n");
     }
@@ -297,12 +297,12 @@ bool copyin(FileSystem *fs, const char *path, size_t inumber) {
 
 	size_t actual = fs->writeInode(inumber, buffer, result, offset);
 	if (actual < 0) {
-	    fprintf(stderr, "fs->write returned invalid result %d\n", actual);
+	    fprintf(stderr, "fs->write returned invalid result %ld\n", actual);
             break;
 	}
 	offset += actual;
 	if (actual != result) {
-	    fprintf(stderr, "fs->write only wrote %d bytes, not %zd bytes\n", actual, result);
+	    fprintf(stderr, "fs->write only wrote %ld bytes, not %zd bytes\n", actual, result);
             break;
 	}
     }
