@@ -19,13 +19,43 @@ void debug(Disk *disk) {
     disk->readDisk(disk, 0, block.Data);
     
     printf("SuperBlock:\n");
+    printf("    magic number is %s\n", (block.Super.MagicNumber == MAGIC_NUMBER? "valid":"invalid"));
     printf("    %u blocks\n"         , block.Super.Blocks);
     printf("    %u inode blocks\n"   , block.Super.InodeBlocks);
     printf("    %u inodes\n"         , block.Super.Inodes);
     
     
     // Read Inode blocks
-    
+    int numberOfInodeBlocks = block.Super.InodeBlocks;
+    for(int inodeBlock=1; inodeBlock<=numberOfInodeBlocks; inodeBlock++){
+        disk->readDisk(disk, inodeBlock, block.Data);
+        for(unsigned int currentInode=0;currentInode<INODES_PER_BLOCK;currentInode++){
+            Inode inode = block.Inodes[currentInode];
+            if(inode.Valid == 0)
+                continue;
+            printf("Inode %d:\n", currentInode);
+            printf("    size: %u bytes\n", inode.Size);
+            printf("    direct blocks:");
+            for(unsigned int directBlock=0; directBlock<POINTERS_PER_INODE; directBlock++){
+                if(inode.Direct[directBlock]){
+                    printf(" %u", inode.Direct[directBlock]);
+                }
+            }
+            printf("\n");
+            int indirectBlock = inode.Indirect;
+            if(indirectBlock){
+                printf("    indirect block: %d\n", indirectBlock);
+                disk->readDisk(disk, indirectBlock, block.Pointers);
+                printf("    indirect data blocks:");
+                for(unsigned int indirectDataBlock=0; indirectDataBlock<POINTERS_PER_BLOCK; indirectDataBlock++){
+                    if(block.Pointers[indirectDataBlock]){
+                        printf(" %u", block.Pointers[indirectDataBlock]);
+                    }
+                }
+                printf("\n");
+            }
+        }
+    }
 }
 
 // Format file system ----------------------------------------------------------
