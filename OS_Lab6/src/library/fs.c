@@ -6,9 +6,15 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 #include <math.h>
+
+// Global Variables
+Disk *device;                       /* Store the mounted disk */
+SuperBlock metadata;                /* Store SuperBlock to access metadata */
+bool *block_in_use;                 /* Free block bit map. Stores true if the block is in use; false otherwise */
 
 // Debug file system -----------------------------------------------------------
 
@@ -111,13 +117,75 @@ bool format(Disk *disk) {
 // Mount file system -----------------------------------------------------------
 
 bool mount(Disk *disk) {
-    // Read superblock
+    // Do nothing and return false if the disk is already mounted
+    if(disk->mounted(disk)){
+        return false;
+    }
+
+    // Read SuperBlock
+    Block block;
+    disk->readDisk(disk, 0, block.Data);
+
+    // Verify if SuperBlock information is valid
+    if(block.Super.MagicNumber != MAGIC_NUMBER || block.Super.InodeBlocks != ceil(block.Super.Blocks*0.10) ||
+    block.Super.Inodes != block.Super.InodeBlocks*INODES_PER_BLOCK) {
+        return false;
+    }
 
     // Set device and mount
+    disk->mount(disk);
+    device = disk;
 
     // Copy metadata
+    metadata = block.Super;
 
     // Allocate free block bitmap
+    block_in_use = (bool *) calloc(metadata.Blocks, sizeof(bool));
+    block_in_use[0] = true;    /* Mark SuperBlock as in use */
+
+    // Read Inode Blocks and mark the ones in use. Also mark any direct or indirect block referenced.
+    int numberOfInodeBlocks = metadata.InodeBlocks;
+    for(int inodeBlock=1; inodeBlock<=numberOfInodeBlocks; inodeBlock++){
+        disk->readDisk(disk, inodeBlock, block.Data);
+        for(unsigned int currentInode=0; currentInode<INODES_PER_BLOCK; currentInode++) {
+            Inode inode = block.Inodes[currentInode];
+            if(inode.Valid == 0){
+                continue;
+            }
+            // Valid Inode was found. Mark the Inode Block as in use
+            block_in_use[inodeBlock] = true;
+
+            // Mark any direct pointer as in use
+            for(unsigned int direct=0; direct<POINTERS_PER_INODE; direct++){
+                if(inode.Direct[direct]){
+                    if(inode.Direct[direct] < metadata.Blocks) {
+                        block_in_use[direct] = true;
+                    } else {
+                        return false;
+                    }
+                }
+            }
+            // Mark any indirect block and all pointed blocks as in use
+            if(inode.Indirect){
+                if(inode.Indirect < metadata.Blocks){
+                    block_in_use[inode.Indirect] = true;
+                    Block indirectBlock;
+                    device->readDisk(disk, inode.Indirect, indirectBlock.Data);
+                    for(unsigned int indirect=0; indirect<POINTERS_PER_BLOCK; indirect++){
+                        if(indirectBlock.Pointers[indirect]){
+                            if(indirectBlock.Pointers[indirect] < metadata.Blocks){
+                                block_in_use[indirectBlock.Pointers[indirect]] = true;
+                            } else{
+                                return false;
+                            }
+                        }
+                    }
+                } else{
+                    return false;
+                }
+            }
+        }
+    }
 
     return true;
 }
