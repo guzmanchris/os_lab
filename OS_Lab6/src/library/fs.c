@@ -15,6 +15,7 @@
 Disk *device;                       /* Store the mounted disk */
 SuperBlock metadata;                /* Store SuperBlock to access metadata */
 bool *block_in_use;                 /* Free block bit map. Stores true if the block is in use; false otherwise */
+int *inode_counter;                 /* Stores the amount of inodes contained per inode block */
 
 // Debug file system -----------------------------------------------------------
 
@@ -141,6 +142,7 @@ bool mount(Disk *disk) {
 
     // Allocate free block bitmap
     block_in_use = (bool *) calloc(metadata.Blocks, sizeof(bool));
+    inode_counter = (int *) calloc(metadata.InodeBlocks, sizeof(int));
     block_in_use[0] = true;    /* Mark SuperBlock as in use */
 
     // Read Inode Blocks and mark the ones in use. Also mark any direct or indirect block referenced.
@@ -152,9 +154,9 @@ bool mount(Disk *disk) {
             if(inode.Valid == 0){
                 continue;
             }
-            // Valid Inode was found. Mark the Inode Block as in use
+            // Valid Inode was found. Mark the Inode Block as in use and add it to count
             block_in_use[inodeBlock] = true;
-
+            inode_counter[inodeBlock - 1]++;
             // Mark any direct pointer as in use
             for(unsigned int direct=0; direct<POINTERS_PER_INODE; direct++){
                 if(inode.Direct[direct]){
