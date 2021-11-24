@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include <math.h>
 
 // Debug file system -----------------------------------------------------------
 
@@ -61,11 +62,46 @@ void debug(Disk *disk) {
 // Format file system ----------------------------------------------------------
 
 bool format(Disk *disk) {
-    
-    // Write superblock
-    
-    // Clear all other blocks
-    
+    // Do nothing and return false if the disk is already mounted
+    if(disk->mounted(disk)){
+        return false;
+    }
+
+    // Initialize SuperBlock
+    Block superBlock;
+    memset(&superBlock, 0, BLOCK_SIZE);
+    SuperBlock super;
+    super.MagicNumber = MAGIC_NUMBER;
+    super.Blocks = disk->Blocks;
+    super.InodeBlocks = ceil(disk->Blocks*0.10);
+    super.Inodes = INODES_PER_BLOCK * super.InodeBlocks;
+    superBlock.Super = super;
+    disk->writeDisk(disk, 0, superBlock.Data);
+
+    // Clear Inode Blocks
+    int numberOfInodeBlocks = super.InodeBlocks;
+    for(int inodeBlock=1; inodeBlock<=numberOfInodeBlocks; inodeBlock++){
+        Block iBlock;
+        // Clear all inodes in block
+        for(unsigned int currentInode=0; currentInode<INODES_PER_BLOCK; currentInode++){
+            iBlock.Inodes[currentInode].Valid = 0;
+            iBlock.Inodes[currentInode].Size = 0;
+            for(unsigned int directBlock=0; directBlock<POINTERS_PER_INODE; directBlock++){
+                iBlock.Inodes[currentInode].Direct[directBlock] = 0;
+            }
+            iBlock.Inodes[currentInode].Indirect = 0;
+            //TODO: Clear Double Indirect
+        }
+        disk->writeDisk(disk, inodeBlock, iBlock.Data);
+    }
+
+    // Clear Data Blocks
+    for(unsigned int dataBlock=super.InodeBlocks+1; dataBlock<super.Blocks; dataBlock++){
+        Block dBlock;
+        memset(&dBlock.Data, 0, BLOCK_SIZE);
+        disk->writeDisk(disk, dataBlock, dBlock.Data);
+    }
+
     return true;
 }
 
