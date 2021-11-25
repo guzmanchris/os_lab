@@ -12,10 +12,15 @@
 #include <math.h>
 
 // Global Variables
+bool mounted = false;
 Disk *device;                       /* Store the mounted disk */
 SuperBlock metadata;                /* Store SuperBlock to access metadata */
 bool *block_in_use;                 /* Free block bit map. Stores true if the block is in use; false otherwise */
 int *inode_counter;                 /* Stores the amount of inodes contained per inode block */
+
+// Useful functions
+bool load_inode(size_t inumber, Inode *node);
+void read_helper(int blocknum, int offset, size_t *length, char **data, char **tail);
 
 // Debug file system -----------------------------------------------------------
 
@@ -136,6 +141,7 @@ bool mount(Disk *disk) {
     // Set device and mount
     disk->mount(disk);
     device = disk;
+    mounted = true;
 
     // Copy metadata
     metadata = block.Super;
@@ -195,30 +201,104 @@ bool mount(Disk *disk) {
 // Create inode ----------------------------------------------------------------
 
 size_t create() {
+    // Fail if device not mounted
+    if(!mounted){
+        return -1;
+    }
+
     // Locate free inode in inode table
+    Block block;
+    for(int inodeBlock=1; inodeBlock<=metadata.InodeBlocks; inodeBlock++){
+        // Continue if block is full
+        if(inode_counter[inodeBlock-1] == INODES_PER_BLOCK)
+            continue;
+
+        // Find the first empty inode in inode table
+        device->readDisk(device, inodeBlock, block.Data);
+        for(unsigned int currentInode=0; currentInode<INODES_PER_BLOCK; currentInode++){
+            if(!block.Inodes[currentInode].Valid) {
+                // Make a valid inode with default values
+                block.Inodes[currentInode].Valid = true;
+                block.Inodes[currentInode].Size = 0;
+                block.Inodes[currentInode].Indirect = 0;
+                for(unsigned int direct=0; direct<POINTERS_PER_INODE; direct++){
+                    block.Inodes[currentInode].Direct[direct] = 0;
+                }
+                // Update global variables
+                block_in_use[inodeBlock] = true;
+                inode_counter[inodeBlock-1]++;
+                // Write to disk
+                device->writeDisk(device, inodeBlock, block.Data);
+
+                return ((inodeBlock-1)*INODES_PER_BLOCK + currentInode);
+            }
+        }
+    }
 
     // Record inode if found
-    return 0;
+    return -1;
 }
 
 // Remove inode ----------------------------------------------------------------
 
 bool removeInode(size_t inumber) {
+    if(!mounted){
+        return false;
+    }
     // Load inode information
+    Inode inode;
+    if(!load_inode(inumber, &inode)){
+        return false;
+    }
+
+    //Verify if block is emptied by removal and mark as not in use if necessary
+    int inodeBlock = inumber/INODES_PER_BLOCK;
+    if(--inode_counter[inodeBlock] == 0){
+        block_in_use[inodeBlock+1] = false;
+    }
+
+    // Reset inode info
+    inode.Valid = false;
+    inode.Size = 0;
 
     // Free direct blocks
+    for(unsigned int direct=0; direct<POINTERS_PER_INODE; direct++){
+        inode.Direct[direct] = 0;
+        block_in_use[inode.Direct[direct]] = false;
+    }
 
     // Free indirect blocks
+    if(inode.Indirect){
+        Block indirect;
+        device->readDisk(device, inode.Indirect, indirect.Data);
+        block_in_use[inode.Indirect] = false;
+        inode.Indirect = 0;
+        for(unsigned int i=0; i<POINTERS_PER_BLOCK; i++){
+            if(indirect.Pointers[i])
+                block_in_use[indirect.Pointers[i]] = false;
+        }
+    }
 
     // Clear inode in inode table
+    Block block;
+    int inodeIndex = inumber==0? 0:inumber%INODES_PER_BLOCK;
+    device->readDisk(device, inodeBlock+1, block.Data);
+    block.Inodes[inodeIndex] = inode;
+    device->writeDisk(device, inodeBlock+1, block.Data);
+
     return true;
 }
 
 // Inode stat ------------------------------------------------------------------
 
 size_t stat(size_t inumber) {
+    if(!mounted){
+        return -1;
+    }
+
     // Load inode information
-    return 0;
+    Inode inode;
+    return load_inode(inumber, &inode)? inode.Size:-1;
 }
 
 // Read from inode -------------------------------------------------------------
@@ -239,4 +319,37 @@ size_t writeInode(size_t inumber, char *data, size_t length, size_t offset) {
     
     // Write block and copy to data
     return 0;
+}
+
+// Useful function implementations ------------------------------------------------
+bool load_inode(size_t inumber, Inode *node){
+    if(!mounted)
+        return false;
+    if(inumber < 0 || inumber > metadata.Inodes)
+        return false;
+
+    // Calculate inode location
+    int inodeBlock = inumber/INODES_PER_BLOCK;
+    int inodeIndex = inumber==0? 0:inumber%INODES_PER_BLOCK;
+
+    // Load into *node
+    if(inode_counter[inodeBlock]){
+        Block block;
+        device->readDisk(device, inodeBlock+1, block.Data);
+        if(block.Inodes[inodeIndex].Valid){
+            *node = block.Inodes[inodeIndex];
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void read_helper(int blocknum, int offset, size_t *length, char **data, char **tail){
+    /* Read block from disk and change pointers accordingly */
+    device->readDisk(device, blocknum, *tail);
+    *data += offset;
+    *tail += BLOCK_SIZE;
+    *length -= (BLOCK_SIZE-offset);
+    return;
 }
