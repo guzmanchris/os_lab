@@ -27,7 +27,7 @@
  *                                -------------------------------------
  *                                W E C G E W H Y A A I  O  R  T  N  U
  */
-int decipher() {
+int main() {
     // Get number of codes to decipher.
     int t;
     scanf("%d\n", &t);
@@ -46,6 +46,7 @@ int decipher() {
 
         if (int_square) {
             // The Code can be transformed into an nxn matrix.
+
             // Row-major traversal of the column-major nxn matrix using the formula.
             for(int row=0; row<n_int; row++) {
                 for(int column=0; column<n_int; column++) {

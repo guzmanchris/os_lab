@@ -10,7 +10,7 @@
 void qsort_ (void *v[], int left, int right, int (*comp) (void *, void *));
 
 
-int sorting_program (int argc, char *argv[])
+int main (int argc, char *argv[])
 {
 
     int nlines;			/*number of input lines read */

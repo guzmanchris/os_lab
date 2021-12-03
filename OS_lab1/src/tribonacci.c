@@ -83,7 +83,7 @@ int tribonacci_calculation(int n){
         default:
             return tribonacci_calculation(n-1) + tribonacci_calculation(n-2) + tribonacci_calculation(n-3);
     }
-}q
+}
 
 int main(){
 
